@@ -2,6 +2,7 @@ out
 build
 .vs
 .vscode
+.idea
 
 CMakeSettings.json
 
