@@ -5,5 +5,3 @@ build
 .idea
 
 CMakeSettings.json
-
-live_coding/*
