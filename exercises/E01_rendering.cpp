@@ -1,10 +1,11 @@
 #include <SDL3/SDL.h>
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
+#include <vector>
+#include <iostream>
 
 #define ENABLE_DIAGNOSTICS
 #define NUM_ASTEROIDS 10
-
 
 #define VALIDATE(expression) if(!(expression)) { SDL_Log("%s\n", SDL_GetError()); }
 
@@ -28,6 +29,8 @@ struct SDLContext
 	bool btn_pressed_down  = false;
 	bool btn_pressed_left  = false;
 	bool btn_pressed_right = false;
+
+	bool btn_pressed_x = false;
 };
 
 struct Entity
@@ -44,7 +47,9 @@ struct Entity
 struct GameState
 {
 	Entity player;
-	Entity asteroids[NUM_ASTEROIDS];
+	std::vector<Entity> asteroids;
+	Entity player_projectile;
+	std::vector<Entity> projectiles;
 
 	SDL_Texture* texture_atlas;
 };
@@ -76,12 +81,15 @@ static void init(SDLContext* context, GameState* game_state)
 	const float asteroid_speed_range = entity_size_world * 4;
 	const int   asteroid_sprite_coords_x = 0;
 	const int   asteroid_sprite_coords_y = 4;
+	const int   projectile_sprite_coords_x = 4;
+	const int   projectile_sprite_coords_y = 3;
+
 	// load textures
 	{
 		int w = 0;
 		int h = 0;
 		int n = 0;
-		unsigned char* pixels = stbi_load("data/kenney/simpleSpace_tilesheet_2.png", &w, &h, &n, 0);
+		unsigned char* pixels = stbi_load("C:/Users/benja/Code/game-programming-25/data/kenney/simpleSpace_tilesheet_2.png", &w, &h, &n, 0);
 
 		SDL_assert(pixels);
 
@@ -119,32 +127,71 @@ static void init(SDLContext* context, GameState* game_state)
 		game_state->player.texture_rect.y = entity_size_texture * player_sprite_coords_y;
 	}
 
+	// projectile
+	{
+		game_state->player_projectile = game_state->player;
+		game_state->player_projectile.texture_rect.x = entity_size_texture * projectile_sprite_coords_x;
+		game_state->player_projectile.texture_rect.y = entity_size_texture * projectile_sprite_coords_y;
+	}
+
 	// asteroids
 	{
 		for(int i = 0; i < NUM_ASTEROIDS; ++i)
 		{
-			Entity* asteroid_curr = &game_state->asteroids[i];
+			Entity asteroid_curr;
 
-			asteroid_curr->position.x = entity_size_world + SDL_randf() * (context->window_w - entity_size_world * 2);
-			asteroid_curr->position.y = -entity_size_world; // spawn asteroids off screen (almost)
-			asteroid_curr->size       = entity_size_world;
-			asteroid_curr->velocity   = asteroid_speed_min + SDL_randf() * asteroid_speed_range;
-			asteroid_curr->texture_atlas = game_state->texture_atlas;
+			asteroid_curr.position.x = entity_size_world + SDL_randf() * (context->window_w - entity_size_world * 2);
+			asteroid_curr.position.y = -entity_size_world; // spawn asteroids off screen (almost)
+			asteroid_curr.size       = entity_size_world;
+			asteroid_curr.velocity   = asteroid_speed_min + SDL_randf() * asteroid_speed_range;
+			asteroid_curr.texture_atlas = game_state->texture_atlas;
 
-			asteroid_curr->rect.w = asteroid_curr->size;
-			asteroid_curr->rect.h = asteroid_curr->size;
+			asteroid_curr.rect.w = asteroid_curr.size;
+			asteroid_curr.rect.h = asteroid_curr.size;
 
-			asteroid_curr->texture_rect.w = entity_size_texture;
-			asteroid_curr->texture_rect.h = entity_size_texture;
+			asteroid_curr.texture_rect.w = entity_size_texture;
+			asteroid_curr.texture_rect.h = entity_size_texture;
 
-			asteroid_curr->texture_rect.x = entity_size_texture * asteroid_sprite_coords_x;
-			asteroid_curr->texture_rect.y = entity_size_texture * asteroid_sprite_coords_y;
+			asteroid_curr.texture_rect.x = entity_size_texture * asteroid_sprite_coords_x;
+			asteroid_curr.texture_rect.y = entity_size_texture * asteroid_sprite_coords_y;
+
+			game_state->asteroids.push_back(asteroid_curr);
 		}
 	}
 }
 
 static void update(SDLContext* context, GameState* game_state)
 {
+	// spawn projectile
+	{
+		const float projectile_speed = 400;
+
+		if (context->btn_pressed_x) {
+			Entity new_projectile = game_state->player_projectile;
+			new_projectile.velocity = projectile_speed;
+			new_projectile.position = game_state->player.position;
+			game_state->projectiles.push_back(new_projectile);
+		}
+
+		for (Entity &projectile : game_state->projectiles) {
+			projectile.position.y -= context->delta * projectile.velocity;
+
+			projectile.rect.x = projectile.position.x;
+			projectile.rect.y = projectile.position.y;
+
+			SDL_SetTextureColorMod(projectile.texture_atlas, 0xFF, 0xFF, 0xFF);
+			SDL_RenderTexture(
+				context->renderer,
+				projectile.texture_atlas,
+				&projectile.texture_rect,
+				&projectile.rect
+			);
+
+		}
+
+	}
+
+
 	// player
 	{
 		Entity* entity_player = &game_state->player; 
@@ -177,30 +224,44 @@ static void update(SDLContext* context, GameState* game_state)
 		// the number 64 is obtained by summing togheter the "radii" of the sprites
 		const float collision_distance_sq = 64*64;
 
-		for(int i = 0; i < NUM_ASTEROIDS; ++i)
-		{
-			Entity* asteroid_curr = &game_state->asteroids[i];
-			asteroid_curr->position.y += context->delta * asteroid_curr->velocity;
+		int i = 0;
+		for (Entity &asteroid_curr : game_state->asteroids) {
+			asteroid_curr.position.y += context->delta * asteroid_curr.velocity;
 
-			asteroid_curr->rect.x = asteroid_curr->position.x;
-			asteroid_curr->rect.y = asteroid_curr->position.y;
+			asteroid_curr.rect.x = asteroid_curr.position.x;
+			asteroid_curr.rect.y = asteroid_curr.position.y;
 
-			float distance_sq = distance_between_sq(asteroid_curr->position, game_state->player.position);
+			float distance_sq = distance_between_sq(asteroid_curr.position, game_state->player.position);
 			if(distance_sq < collision_distance_sq)
-				SDL_SetTextureColorMod(asteroid_curr->texture_atlas, 0xFF, 0x00, 0x00);
+				SDL_SetTextureColorMod(asteroid_curr.texture_atlas, 0xFF, 0x00, 0x00);
 			else if(distance_sq < warning_distance_sq)
-				SDL_SetTextureColorMod(asteroid_curr->texture_atlas, 0xCC, 0xCC, 0x00);
+				SDL_SetTextureColorMod(asteroid_curr.texture_atlas, 0xCC, 0xCC, 0x00);
 			else
-				SDL_SetTextureColorMod(asteroid_curr->texture_atlas, 0xFF, 0xFF, 0xFF);
+				SDL_SetTextureColorMod(asteroid_curr.texture_atlas, 0xFF, 0xFF, 0xFF);
 
 			SDL_RenderTexture(
 				context->renderer,
-				asteroid_curr->texture_atlas,
-				&asteroid_curr->texture_rect,
-				&asteroid_curr->rect
+				asteroid_curr.texture_atlas,
+				&asteroid_curr.texture_rect,
+				&asteroid_curr.rect
 			);
+
+			// CURSED
+			int j = 0;
+			for (Entity &projectile : game_state->projectiles) {
+				float distance_to_projectile_sq = distance_between_sq(asteroid_curr.position, projectile.position);
+				if (distance_to_projectile_sq < 3000) {
+					game_state->asteroids.erase(game_state->asteroids.begin() + i);
+					game_state->projectiles.erase(game_state->projectiles.begin() + j);
+					break;
+				}
+				j++;
+			}
+
+			i++;
 		}
 	}
+
 }
 
 int main(void)
@@ -239,6 +300,8 @@ int main(void)
 	SDL_GetCurrentTime(&walltime_frame_beg);
 	while(!quit)
 	{
+		context.btn_pressed_x = false;
+
 		// input
 		SDL_Event event;
 		while(SDL_PollEvent(&event))
@@ -259,6 +322,8 @@ int main(void)
 						context.btn_pressed_down = event.key.down;
 					if(event.key.key == SDLK_D)
 						context.btn_pressed_right = event.key.down;
+					if(event.key.key == SDLK_X)
+						context.btn_pressed_x = true;
 			}
 		}
 
