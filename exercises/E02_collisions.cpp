@@ -9,6 +9,8 @@
 #include <itu_common.hpp>
 #include <itu_lib_render.hpp>
 #include <itu_lib_overlaps.hpp>
+#include <unordered_set>
+#include <iostream>
 
 #define ENABLE_DIAGNOSTICS
 
@@ -16,7 +18,7 @@
 #define WINDOW_W 800
 #define WINDOW_H 600
 
-#define ENTITY_COUNT 128
+#define ENTITY_COUNT 1000
 #define MAX_COLLISIONS 1024   // num max collisions per frame
 
 bool DEBUG_separate_collisions   = true;
@@ -56,6 +58,8 @@ struct GameState
 
 	// SDL-allocated structures
 	SDL_Texture* atlas;
+
+	std::unordered_set<Entity*> quadrants[4];
 };
 
 static SDL_Texture* texture_create(SDLContext* context, const char* path)
@@ -158,44 +162,62 @@ struct EntityCollisionInfo
 	float separation;
 };
 
+
+static int get_quadrant(vec2f position) {
+	if (position.x <= WINDOW_W / 2 && position.y <= WINDOW_H / 2) {
+		return 0;
+	}
+	else if (position.x > WINDOW_W / 2 && position.y <= WINDOW_H / 2) {
+		return 1;
+	}
+	else if (position.x <= WINDOW_W / 2 && position.y > WINDOW_H / 2) {
+		return 2;
+	} else {
+		return 3;
+	}
+}
+
+
 static void collision_check(GameState* state)
 {
 	state->frame_collisions_count = 0;
-	for(int i = 0; i < state->entities_alive_count - 1; ++i)
-	{
-		Entity* e1 = &state->entities[i];
-		
-		for(int j = i + 1; j < state->entities_alive_count; ++j)
-		{
-			Entity* e2 = &state->entities[j];
+	for (int i = 0; i < 4; i++) {
+		std::unordered_set<Entity*> quadrant = state->quadrants[i];
+		for (Entity* e1 : quadrant) {
+			
+			for (Entity* e2 : quadrant) {
+				if (e1 == e2) continue;
 
-			if(itu_lib_overlaps_circle_circle(
-				e1->position + e1->collider_offset, e1->collider_radius,
-				e2->position + e2->collider_offset, e2->collider_radius
-			))
-			{
-				e1->sprite.tint = COLOR_RED;
-				e2->sprite.tint = COLOR_RED;
-
-				if(state->frame_collisions_count >= MAX_COLLISIONS)
+				if(itu_lib_overlaps_circle_circle(
+					e1->position + e1->collider_offset, e1->collider_radius,
+					e2->position + e2->collider_offset, e2->collider_radius
+				))
 				{
-					SDL_Log("[WARNING] too many collisions!");
-					return;
+					e1->sprite.tint = COLOR_RED;
+					e2->sprite.tint = COLOR_RED;
+
+					if(state->frame_collisions_count >= MAX_COLLISIONS)
+					{
+						SDL_Log("[WARNING] too many collisions!");
+						return;
+					}
+
+					SDL_Log("%d", (int)e2->position.x);
+					// NOTE: here we are redoing a bunch of work that we already done in the overlap test. An easy optimization is do to have the test return the collision info
+					vec2f v = (e2->position + e2->collider_offset) - (e1->position + e1->collider_offset);
+					float l = length(v);
+					float separation_vector = e1->collider_radius + e2->collider_radius - l;
+					int new_collision_idx = state->frame_collisions_count++;
+
+					state->frame_collisions[new_collision_idx].e1 = e1;
+					state->frame_collisions[new_collision_idx].e2 = e2;
+					state->frame_collisions[new_collision_idx].normal = v / l; // normalize vector (we already need the length, so we don't need to call normalize which would do that anyway)
+					state->frame_collisions[new_collision_idx].separation = separation_vector;
 				}
-
-				// NOTE: here we are redoing a bunch of work that we already done in the overlap test. An easy optimization is do to have the test return the collision info
-				vec2f v = (e2->position + e2->collider_offset) - (e1->position + e1->collider_offset);
-				float l = length(v);
-				float separation_vector = e1->collider_radius + e2->collider_radius - l;
-				int new_collision_idx = state->frame_collisions_count++;
-
-				state->frame_collisions[new_collision_idx].e1 = e1;
-				state->frame_collisions[new_collision_idx].e2 = e2;
-				state->frame_collisions[new_collision_idx].normal = v / l; // normalize vector (we already need the length, so we don't need to call normalize which would do that anyway)
-				state->frame_collisions[new_collision_idx].separation = separation_vector;
 			}
 		}
 	}
+
 }
 
 static void collision_separate(GameState* state)
@@ -204,9 +226,32 @@ static void collision_separate(GameState* state)
 	{
 		EntityCollisionInfo entity_collision_info = state->frame_collisions[i];
 
+		int e1_quadrant = get_quadrant(entity_collision_info.e1->position);
+		int e2_quadrant = get_quadrant(entity_collision_info.e2->position);
+
 		vec2f sep = entity_collision_info.normal * entity_collision_info.separation / 2;
 		entity_collision_info.e1->position -= sep;
 		entity_collision_info.e2->position += sep;
+
+		entity_collision_info.e1->position.x = SDL_clamp(entity_collision_info.e1->position.x, 0, WINDOW_W - entity_collision_info.e1->size.x);
+		
+		entity_collision_info.e1->position.y = SDL_clamp(entity_collision_info.e1->position.y, 0, WINDOW_H - entity_collision_info.e1->size.y);
+
+		entity_collision_info.e2->position.x = SDL_clamp(entity_collision_info.e2->position.x, 0, WINDOW_W - entity_collision_info.e2->size.x);
+
+		entity_collision_info.e2->position.y = SDL_clamp(entity_collision_info.e2->position.y, 0, WINDOW_H - entity_collision_info.e2->size.y);
+
+		int e1_quadrant_new = get_quadrant(entity_collision_info.e1->position);
+		int e2_quadrant_new = get_quadrant(entity_collision_info.e2->position);
+
+		if (entity_collision_info.e1 != state->player) {
+			state->quadrants[e1_quadrant].erase(entity_collision_info.e1);
+			state->quadrants[e1_quadrant_new].insert(entity_collision_info.e1);
+		}
+		if (entity_collision_info.e2 != state->player) {
+			state->quadrants[e2_quadrant].erase(entity_collision_info.e2);
+			state->quadrants[e2_quadrant_new].insert(entity_collision_info.e2);
+		}
 	}
 }
 
@@ -223,12 +268,14 @@ static void game_init(SDLContext* context, GameState* state)
 
 		state->frame_collisions = (EntityCollisionInfo*)SDL_malloc(MAX_COLLISIONS * sizeof(EntityCollisionInfo));
 		SDL_assert(state->frame_collisions);
+
 	}
 
 	// texture atlasesw
 	state->atlas = texture_create(context, "data/kenney/simpleSpace_tilesheet_2.png");
 
 }
+
 
 static void game_reset(SDLContext* context, GameState* state)
 {
@@ -252,7 +299,7 @@ static void game_reset(SDLContext* context, GameState* state)
 	state->player = player;
 
 	// grid pattern
-	for(int i = 0; i < 9; ++i)
+	for(int i = 0; i < 100000; ++i)
 	{
 		Entity* entity = entity_create(state);
 		if(!entity)
@@ -261,8 +308,8 @@ static void game_reset(SDLContext* context, GameState* state)
 			break;
 		}
 		
-		vec2f coords = vec2f{ 1.5f + i % 3, 1.5f + i / 3};
-		entity->size = vec2f{ 64, 64 };
+		vec2f coords = vec2f{ 10.f + i % 40, 10.f + i / 40};
+		entity->size = vec2f{ 14, 14 };
 		entity->position = mul_element_wise(entity->size,  coords);
 		entity->sprite = {
 			.texture = state->atlas,
@@ -270,8 +317,15 @@ static void game_reset(SDLContext* context, GameState* state)
 			.tint = COLOR_WHITE,
 			.pivot = vec2f{ 0.5f, 0.5f }
 		};
-		entity->collider_radius = 32;
+		entity->collider_radius = 7;
+
+		state->quadrants[get_quadrant(entity->position)].insert(entity);
 	}
+	state->quadrants[0].insert(state->player);
+	state->quadrants[1].insert(state->player);
+	state->quadrants[2].insert(state->player);
+	state->quadrants[3].insert(state->player);
+	SDL_Log("%d %d %d %d", state->quadrants[0].size(), state->quadrants[1].size(), state->quadrants[2].size(), state->quadrants[3].size());
 }
 
 static void game_update(SDLContext* context, GameState* state)

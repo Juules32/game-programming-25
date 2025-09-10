@@ -13,6 +13,7 @@
 
 #include <SDL3/SDL_render.h>
 #include <itu_common.hpp>
+#include <vector>
 
 void itu_lib_render_draw_point(SDL_Renderer* renderer, vec2f pos, float half_size, color color);
 void itu_lib_render_draw_rect(SDL_Renderer* renderer, vec2f min, vec2f max, color color);
@@ -45,7 +46,7 @@ void itu_lib_render_draw_rect(SDL_Renderer* renderer, vec2f min, vec2f extents, 
 
 void itu_lib_render_draw_circle(SDL_Renderer* renderer, vec2f center, float radius, int vertex_count, color color)
 {
-	SDL_FPoint points[vertex_count + 1];
+	std::vector<SDL_FPoint> points(vertex_count + 1);
 	
 	float angle_increment = TAU / vertex_count;
 
@@ -60,7 +61,7 @@ void itu_lib_render_draw_circle(SDL_Renderer* renderer, vec2f center, float radi
 	points[vertex_count] = points[0];
 	
 	SDL_SetRenderDrawColorFloat(renderer, color.r, color.g, color.b, 0xFF);
-	SDL_RenderLines(renderer, points, vertex_count + 1);
+	SDL_RenderLines(renderer, points.data(), vertex_count + 1);
 }
 
 void itu_lib_render_draw_polygon(SDL_Renderer* renderer, vec2f position, const vec2f* vertices, int vertexCount, color color)
