@@ -13,6 +13,7 @@
 
 #include <SDL3/SDL_render.h>
 #include <itu_common.hpp>
+#include <vector>
 
 #define MAX_CIRCLE_VERTICES 16
 
@@ -59,9 +60,7 @@ void itu_lib_render_draw_rect_fill(SDL_Renderer* renderer, vec2f min, vec2f exte
 // NOTE: vertex count must be smaller than `MAX_CIRCLE_VERTICES` (defaults to 16, but you can change it if you need to)
 void itu_lib_render_draw_circle(SDL_Renderer* renderer, vec2f center, float radius, int vertex_count, color color)
 {
-	SDL_assert(vertex_count <= MAX_CIRCLE_VERTICES);
-
-	SDL_FPoint points[MAX_CIRCLE_VERTICES + 1];
+	std::vector<SDL_FPoint> points(vertex_count + 1);
 	
 	float angle_increment = TAU / vertex_count;
 
@@ -76,7 +75,7 @@ void itu_lib_render_draw_circle(SDL_Renderer* renderer, vec2f center, float radi
 	points[vertex_count] = points[0];
 	
 	SDL_SetRenderDrawColorFloat(renderer, color.r, color.g, color.b, 0xFF);
-	SDL_RenderLines(renderer, points, vertex_count + 1);
+	SDL_RenderLines(renderer, points.data(), vertex_count + 1);
 }
 
 void itu_lib_render_draw_polygon(SDL_Renderer* renderer, vec2f position, const vec2f* vertices, int vertexCount, color color)

@@ -46,6 +46,8 @@ Some optimizations to try:
 	- an `EntityType` enum, to decide if a given entity is a player, an asteroid or a collectible
 - both asteroids and collectibles move randomly in the screen window
 	- similar to what we did with the player, you can have arrays of references to keep track of which entities need to have additional update processing. (IMPORTANT: do not reorder the entities, or your references will not be correct anymore. Pointers as "entity identifier" is a very crude solution, we'll see later how to create proper identifier and the acceleration structures that go with them)
+
+
 ```c++
 struct GameState
 {

@@ -5,3 +5,5 @@ build
 .idea
 
 CMakeSettings.json
+live_coding/*
+!live_coding/CMakeLists.txt
