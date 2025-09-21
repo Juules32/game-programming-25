@@ -76,8 +76,8 @@ static void game_init(SDLContext* context, GameState* state)
 	// TODO allocate space for tile info (when we'll load those from file)
 
 	// texture atlases
-	state->atlas = texture_create(context, "data/kenney/simpleSpace_tilesheet_2.png", SDL_SCALEMODE_LINEAR);
-	state->bg    = texture_create(context, "data/kenney/prototype_texture_dark/texture_13.png", SDL_SCALEMODE_LINEAR);
+	state->atlas = texture_create(context, "../data/kenney/simpleSpace_tilesheet_2.png", SDL_SCALEMODE_LINEAR);
+	state->bg    = texture_create(context, "../data/kenney/prototype_texture_dark/texture_13.png", SDL_SCALEMODE_LINEAR);
 }
 
 static void game_reset(SDLContext* context, GameState* state)
