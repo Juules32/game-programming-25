@@ -309,11 +309,15 @@ static void game_reset(SDLContext* context, GameState* state)
 		vec2f coords = vec2f{ 10.f + i % 40, 10.f + i / 40};
 		entity->size = vec2f{ 14, 14 };
 		entity->position = mul_element_wise(entity->size,  coords);
-		entity->sprite.texture = state->atlas;
-		entity->sprite.rect = SDL_FRect{ 0, 4*128, 128, 128 };
-		entity->sprite.tint = COLOR_WHITE,
-		entity->sprite.pivot = vec2f{ 0.5f, 0.5f };
-		entity->collider_radius = 32;
+		entity->sprite = {
+			.texture = state->atlas,
+			.rect = SDL_FRect{ 0, 4*128, 128, 128 },
+			.tint = COLOR_WHITE,
+			.pivot = vec2f{ 0.5f, 0.5f }
+		};
+		entity->collider_radius = 7;
+
+		state->quadrants[get_quadrant(entity->position)].insert(entity);
 	}
 	state->quadrants[0].insert(state->player);
 	state->quadrants[1].insert(state->player);

@@ -68,7 +68,7 @@ void itu_lib_render_draw_rect_fill(SDL_Renderer* renderer, vec2f min, vec2f exte
 // NOTE: vertex count must be smaller than `MAX_CIRCLE_VERTICES` (defaults to 16, but you can change it if you need to)
 void itu_lib_render_draw_circle(SDL_Renderer* renderer, vec2f center, float radius, int vertex_count, color color)
 {
-	SDL_FPoint points[vertex_count + 1];
+	std::vector<SDL_FPoint> points(vertex_count + 1);
 	
 	float angle_increment = TAU / vertex_count;
 
