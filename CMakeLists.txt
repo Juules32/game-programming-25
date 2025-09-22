@@ -11,11 +11,14 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # 3rd party libraries
 add_subdirectory(lib/SDL)
+add_subdirectory(lib/box2d)
+add_subdirectory(lib/imgui)
+
+# our libraries
 include_directories(lib/stb)
 
 # repo's executables
 add_subdirectory(examples)
 add_subdirectory(playground)
-add_subdirectory(live_coding)
 add_subdirectory(exercises)
 add_subdirectory(exercises_solutions)
